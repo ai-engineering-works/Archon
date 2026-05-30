@@ -123,6 +123,9 @@ export {
 
 export { generateAndSetTitle } from './services/title-generator';
 
+export { bootstrapCodegraphIndex, type BootstrapResult } from './services/codegraph-bootstrap';
+export { detectCodegraphBinary, type CodegraphDetection } from './services/codegraph-detect';
+
 // =============================================================================
 // State
 // =============================================================================

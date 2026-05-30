@@ -1,0 +1,54 @@
+/**
+ * Run `codegraph init -i` against a codebase source directory.
+ *
+ * Failure is never thrown — the caller (codebase registration) must not
+ * be blocked by codegraph problems. Always returns a discriminated union.
+ *
+ * Timeout: 10 minutes. Big repos can legitimately take a while to index.
+ */
+import { execFileAsync } from '@archon/git';
+import { createLogger } from '@archon/paths';
+import { detectCodegraphBinary } from './codegraph-detect';
+
+const log = createLogger('codegraph');
+
+const INDEX_TIMEOUT_MS = 10 * 60 * 1000;
+
+export type BootstrapResult =
+  | { ok: true; durationMs: number }
+  | { ok: false; reason: 'binary_missing' | 'index_failed' | 'index_timeout'; detail?: string };
+
+export async function bootstrapCodegraphIndex(sourcePath: string): Promise<BootstrapResult> {
+  const detection = await detectCodegraphBinary();
+  if (!detection.found) {
+    log.warn({ phase: 'bootstrap' }, 'codegraph.binary_missing');
+    return { ok: false, reason: 'binary_missing' };
+  }
+
+  log.info({ sourcePath }, 'codegraph.index_started');
+  const startedAt = Date.now();
+
+  try {
+    await execFileAsync('codegraph', ['init', '-i'], {
+      cwd: sourcePath,
+      timeout: INDEX_TIMEOUT_MS,
+    });
+    const durationMs = Date.now() - startedAt;
+    log.info({ sourcePath, durationMs }, 'codegraph.index_completed');
+    return { ok: true, durationMs };
+  } catch (err) {
+    const errorObj = err as NodeJS.ErrnoException & { stderr?: string; killed?: boolean };
+    const durationMs = Date.now() - startedAt;
+
+    if (errorObj.killed || errorObj.code === 'ETIMEDOUT') {
+      log.error({ sourcePath, durationMs }, 'codegraph.index_timeout');
+      return { ok: false, reason: 'index_timeout' };
+    }
+
+    log.error(
+      { sourcePath, durationMs, stderr: errorObj.stderr, err: errorObj.message },
+      'codegraph.index_failed'
+    );
+    return { ok: false, reason: 'index_failed', detail: errorObj.message };
+  }
+}
