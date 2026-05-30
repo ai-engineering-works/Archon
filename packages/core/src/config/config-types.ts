@@ -61,6 +61,24 @@ export type AssistantDefaults = ProviderDefaultsMap & {
   codex: CodexProviderDefaults;
 };
 
+/**
+ * Codegraph integration settings.
+ *
+ * `enabled` makes ClaudeProvider attach the codegraph MCP server on every
+ * Claude node unless overridden at workflow or node level.
+ *
+ * `autoIndex` makes codebase registration run `codegraph init -i` on the
+ * source repo (so worktrees can copy the prebuilt index).
+ *
+ * `watchDebounceMs` is forwarded to the spawned `codegraph serve --mcp`
+ * child as `CODEGRAPH_WATCH_DEBOUNCE_MS`. Codegraph itself clamps it.
+ */
+export interface CodegraphConfig {
+  enabled?: boolean;
+  autoIndex?: boolean;
+  watchDebounceMs?: number;
+}
+
 export interface GlobalConfig {
   /**
    * Bot display name (shown in messages)
@@ -115,6 +133,11 @@ export interface GlobalConfig {
      */
     maxConversations?: number;
   };
+
+  /**
+   * Codegraph integration. Defaults to disabled.
+   */
+  codegraph?: CodegraphConfig;
 }
 
 /**
@@ -222,6 +245,11 @@ export interface RepoConfig {
   env?: Record<string, string>;
 
   /**
+   * Codegraph integration. Defaults to disabled.
+   */
+  codegraph?: CodegraphConfig;
+
+  /**
    * Default commands/workflows configuration
    */
   defaults?: {
@@ -300,6 +328,11 @@ export interface MergedConfig {
    * Undefined when no env vars are configured.
    */
   envVars?: Record<string, string>;
+  codegraph: {
+    enabled: boolean;
+    autoIndex: boolean;
+    watchDebounceMs: number;
+  };
 }
 
 /**

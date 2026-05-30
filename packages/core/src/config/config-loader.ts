@@ -54,6 +54,12 @@ function getRegisteredProviderNames(): string[] {
   return getRegisteredProviders().map(p => p.id);
 }
 
+function clampDebounce(ms: number): number {
+  if (ms < 100) return 100;
+  if (ms > 60_000) return 60_000;
+  return ms;
+}
+
 function mergeAssistantDefaults(
   base: AssistantDefaults,
   overrides?: AssistantDefaultsConfig
@@ -302,6 +308,11 @@ function getDefaults(): MergedConfig {
       loadDefaultCommands: true,
       loadDefaultWorkflows: true,
     },
+    codegraph: {
+      enabled: false,
+      autoIndex: true,
+      watchDebounceMs: 2000,
+    },
   };
 }
 
@@ -357,6 +368,11 @@ function applyEnvOverrides(config: MergedConfig): MergedConfig {
     }
   }
 
+  const envCodegraph = process.env.ARCHON_CODEGRAPH_ENABLED;
+  if (envCodegraph !== undefined) {
+    config.codegraph.enabled = envCodegraph === 'true' || envCodegraph === '1';
+  }
+
   return config;
 }
 
@@ -404,6 +420,16 @@ function mergeGlobalConfig(defaults: MergedConfig, global: GlobalConfig): Merged
   // Concurrency preferences
   if (global.concurrency?.maxConversations) {
     result.concurrency.maxConversations = global.concurrency.maxConversations;
+  }
+
+  if (global.codegraph) {
+    result.codegraph = {
+      enabled: global.codegraph.enabled ?? result.codegraph.enabled,
+      autoIndex: global.codegraph.autoIndex ?? result.codegraph.autoIndex,
+      watchDebounceMs: clampDebounce(
+        global.codegraph.watchDebounceMs ?? result.codegraph.watchDebounceMs
+      ),
+    };
   }
 
   return result;
@@ -470,6 +496,16 @@ function mergeRepoConfig(merged: MergedConfig, repo: RepoConfig): MergedConfig {
   // Propagate per-project env vars from repo config
   if (repo.env) {
     result.envVars = { ...result.envVars, ...repo.env };
+  }
+
+  if (repo.codegraph) {
+    result.codegraph = {
+      enabled: repo.codegraph.enabled ?? result.codegraph.enabled,
+      autoIndex: repo.codegraph.autoIndex ?? result.codegraph.autoIndex,
+      watchDebounceMs: clampDebounce(
+        repo.codegraph.watchDebounceMs ?? result.codegraph.watchDebounceMs
+      ),
+    };
   }
 
   return result;

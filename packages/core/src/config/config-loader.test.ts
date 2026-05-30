@@ -598,6 +598,99 @@ assistants:
     });
   });
 
+  describe('codegraph defaults', () => {
+    test('defaults to disabled with autoIndex on and 2000ms debounce', async () => {
+      const cfg = await loadConfig();
+      expect(cfg.codegraph).toEqual({
+        enabled: false,
+        autoIndex: true,
+        watchDebounceMs: 2000,
+      });
+    });
+
+    test('global config can flip codegraph.enabled to true', async () => {
+      mockFsReadFile.mockResolvedValue(`
+codegraph:
+  enabled: true
+`);
+      const cfg = await loadConfig();
+      expect(cfg.codegraph.enabled).toBe(true);
+      expect(cfg.codegraph.autoIndex).toBe(true);
+    });
+
+    test('repo config overrides global for codegraph.enabled', async () => {
+      const pathMatches = (path: string, pattern: string): boolean =>
+        path.replace(/\\/g, '/').includes(pattern);
+
+      let globalConfigRead = false;
+      mockFsReadFile.mockImplementation(async (path: string) => {
+        if (pathMatches(path, '/repo/.archon/config.yaml')) {
+          return `
+codegraph:
+  enabled: false
+`;
+        }
+        if (pathMatches(path, '.archon/config.yaml') && !globalConfigRead) {
+          globalConfigRead = true;
+          return `
+codegraph:
+  enabled: true
+`;
+        }
+        const error = new Error('ENOENT') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        throw error;
+      });
+
+      const cfg = await loadConfig('/test/repo');
+      expect(cfg.codegraph.enabled).toBe(false);
+    });
+
+    test('clamps watchDebounceMs to [100, 60000]', async () => {
+      mockFsReadFile.mockResolvedValue(`
+codegraph:
+  watchDebounceMs: 10
+`);
+      const low = await loadConfig();
+      expect(low.codegraph.watchDebounceMs).toBe(100);
+
+      clearConfigCache();
+      mockFsReadFile.mockResolvedValue(`
+codegraph:
+  watchDebounceMs: 999999
+`);
+      const high = await loadConfig();
+      expect(high.codegraph.watchDebounceMs).toBe(60_000);
+    });
+
+    test('ARCHON_CODEGRAPH_ENABLED=true overrides config.enabled=false', async () => {
+      process.env.ARCHON_CODEGRAPH_ENABLED = 'true';
+      try {
+        const error = new Error('ENOENT') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        mockFsReadFile.mockRejectedValue(error);
+        const cfg = await loadConfig();
+        expect(cfg.codegraph.enabled).toBe(true);
+      } finally {
+        delete process.env.ARCHON_CODEGRAPH_ENABLED;
+      }
+    });
+
+    test('ARCHON_CODEGRAPH_ENABLED=false overrides config.enabled=true', async () => {
+      process.env.ARCHON_CODEGRAPH_ENABLED = 'false';
+      try {
+        mockFsReadFile.mockResolvedValue(`
+codegraph:
+  enabled: true
+`);
+        const cfg = await loadConfig();
+        expect(cfg.codegraph.enabled).toBe(false);
+      } finally {
+        delete process.env.ARCHON_CODEGRAPH_ENABLED;
+      }
+    });
+  });
+
   describe('toSafeConfig', () => {
     test('strips paths from MergedConfig', async () => {
       mockFsReadFile.mockResolvedValue('');
