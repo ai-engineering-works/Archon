@@ -54,3 +54,15 @@ export function resetCodegraphDetectionForTests(): void {
   cache = null;
   inflight = null;
 }
+
+/**
+ * Synchronous read of the cached detection result.
+ *
+ * Returns `null` when the cache is empty (detection has not yet run). Callers
+ * that need a guaranteed answer must `await detectCodegraphBinary()` first.
+ * The MCP extension uses this to avoid awaiting inside an extension function
+ * (the registry's `collectClaudeMcpExtensions` is synchronous).
+ */
+export function getCachedCodegraphDetection(): CodegraphDetection | null {
+  return cache;
+}

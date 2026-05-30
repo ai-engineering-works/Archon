@@ -124,7 +124,15 @@ export {
 export { generateAndSetTitle } from './services/title-generator';
 
 export { bootstrapCodegraphIndex, type BootstrapResult } from './services/codegraph-bootstrap';
-export { detectCodegraphBinary, type CodegraphDetection } from './services/codegraph-detect';
+export {
+  detectCodegraphBinary,
+  getCachedCodegraphDetection,
+  type CodegraphDetection,
+} from './services/codegraph-detect';
+
+// Side-effect import: registers the codegraph extension with the Claude MCP
+// extensions registry on first import of @archon/core.
+import './services/codegraph-mcp';
 
 // =============================================================================
 // State
