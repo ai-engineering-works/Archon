@@ -47,6 +47,7 @@ describe('config-loader', () => {
     'WORKSPACE_PATH',
     'WORKTREE_BASE',
     'ARCHON_HOME',
+    'ARCHON_CODEGRAPH_ENABLED',
   ];
 
   beforeEach(() => {
@@ -661,6 +662,23 @@ codegraph:
 `);
       const high = await loadConfig();
       expect(high.codegraph.watchDebounceMs).toBe(60_000);
+
+      // Exact boundary values must be preserved (not clamped)
+      clearConfigCache();
+      mockFsReadFile.mockResolvedValue(`
+codegraph:
+  watchDebounceMs: 100
+`);
+      const atMin = await loadConfig();
+      expect(atMin.codegraph.watchDebounceMs).toBe(100);
+
+      clearConfigCache();
+      mockFsReadFile.mockResolvedValue(`
+codegraph:
+  watchDebounceMs: 60000
+`);
+      const atMax = await loadConfig();
+      expect(atMax.codegraph.watchDebounceMs).toBe(60_000);
     });
 
     test('ARCHON_CODEGRAPH_ENABLED=true overrides config.enabled=false', async () => {
