@@ -18,6 +18,8 @@ import {
 import { findMarkdownFilesRecursive } from '../utils/commands';
 import { createLogger } from '@archon/paths';
 import { resolveDefaultAssistant } from '../config/resolve-assistant';
+import { loadConfig } from '../config/config-loader';
+import { bootstrapCodegraphIndex } from '../services/codegraph-bootstrap';
 
 /** Lazy-initialized logger (deferred so test mocks can intercept createLogger) */
 let cachedLog: ReturnType<typeof createLogger> | undefined;
@@ -227,6 +229,26 @@ async function registerRepoAtPath(
       commandsLoaded = markdownFiles.length;
       break;
     }
+  }
+
+  // Fire-and-forget codegraph bootstrap. Never blocks registration: the
+  // bootstrap service returns a discriminated union and logs its own errors,
+  // so we don't need a try/catch around the awaited call. If bootstrap is
+  // disabled (default) or the binary is missing, the call short-circuits
+  // and registration proceeds unchanged.
+  try {
+    const config = await loadConfig(targetPath);
+    if (config.codegraph.enabled && config.codegraph.autoIndex) {
+      await bootstrapCodegraphIndex(targetPath);
+    }
+  } catch (err) {
+    // Defensive: bootstrapCodegraphIndex is contractually never-throw, but
+    // loadConfig could throw on YAML parse errors. We still don't want
+    // registration to fail because the user has a broken config.
+    getLog().warn(
+      { err: (err as Error).message, codebaseId: codebase.id },
+      'codegraph.bootstrap_skipped_due_to_config_error'
+    );
   }
 
   return {
