@@ -231,12 +231,18 @@ async function registerRepoAtPath(
     }
   }
 
-  // Fire-and-forget codegraph bootstrap. Never blocks registration: the
-  // bootstrap service returns a discriminated union and logs its own errors,
-  // so we don't need a try/catch around the awaited call. If bootstrap is
-  // disabled (default) or the binary is missing, the call short-circuits
-  // and registration proceeds unchanged.
+  // Bootstrap the codegraph index for this repo. The call awaits completion
+  // (up to 10 min; the bootstrap service enforces the timeout internally).
+  // Registration is NOT blocked on codegraph *failure* — the service returns
+  // a discriminated union and never throws; only loadConfig errors are caught
+  // here. To skip indexing, set codegraph.enabled or codegraph.autoIndex to
+  // false in config.
   try {
+    // Repo YAML is read twice during registration today (also inside
+    // resolveDefaultAssistant upstream). The global config is module-cached;
+    // the per-repo read is a fresh ENOENT on new registrations (cheap). A
+    // future refactor can pass the resolved config forward from
+    // resolveDefaultAssistant to eliminate the duplicate.
     const config = await loadConfig(targetPath);
     if (config.codegraph.enabled && config.codegraph.autoIndex) {
       await bootstrapCodegraphIndex(targetPath);
@@ -246,8 +252,8 @@ async function registerRepoAtPath(
     // loadConfig could throw on YAML parse errors. We still don't want
     // registration to fail because the user has a broken config.
     getLog().warn(
-      { err: (err as Error).message, codebaseId: codebase.id },
-      'codegraph.bootstrap_skipped_due_to_config_error'
+      { err: (err as Error).message, codebaseId: codebase.id, phase: 'registration' },
+      'codegraph.bootstrap_skipped'
     );
   }
 

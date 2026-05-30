@@ -1326,4 +1326,15 @@ describe('registerRepoAtPath: codegraph bootstrap', () => {
     // The warn should have been logged for the unexpected error
     expect(mockLogger.warn.mock.calls.length).toBeGreaterThan(0);
   });
+
+  test('registration succeeds even when loadConfig throws', async () => {
+    mockLoadConfig.mockRejectedValue(new Error('YAML parse error'));
+
+    const result = await registerRepository('/home/user/myrepo');
+
+    expect(result.alreadyExisted).toBe(false);
+    expect(result.codebaseId).toBe('codebase-uuid-1');
+    expect(mockBootstrapCodegraphIndex.mock.calls.length).toBe(0);
+    expect(mockLogger.warn.mock.calls.length).toBeGreaterThan(0);
+  });
 });
