@@ -49,6 +49,7 @@ import {
   getArchonHome as pathsGetArchonHome,
   createLogger,
 } from '@archon/paths';
+import { runCodegraphSetupStep } from '../setup/codegraph-step';
 
 let cachedLog: ReturnType<typeof createLogger> | undefined;
 function getLog(): ReturnType<typeof createLogger> {
@@ -2009,6 +2010,34 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
     }
   } else {
     const ai = await collectAIConfig();
+
+    // Codegraph step — Claude-only optimization, skipped if Claude not selected.
+    await runCodegraphSetupStep({
+      hasClaude: ai.claude,
+      envPath: join(getArchonHome(), '.env'),
+      configPath: join(getArchonHome(), 'config.yaml'),
+      promptInstall: async () => {
+        const ans = await confirm({
+          message:
+            'CodeGraph reduces token usage by ~25% on Claude workflows by indexing your codebase. Install it now?',
+          initialValue: true,
+        });
+        if (isCancel(ans)) return false;
+        return ans;
+      },
+      promptEnable: async version => {
+        const ans = await confirm({
+          message: `Enable CodeGraph by default for new codebases?${version ? ` (Installed: v${version})` : ''}`,
+          initialValue: true,
+        });
+        if (isCancel(ans)) return false;
+        return ans;
+      },
+      log: m => {
+        console.log(m);
+      },
+    });
+
     const platforms = await collectPlatforms();
 
     config = {
