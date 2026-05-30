@@ -84,4 +84,31 @@ describe('mergeYamlConfig', () => {
     expect(parsed.maxConcurrent).toBe(10);
     expect((parsed.streaming as Record<string, string>).telegram).toBe('stream');
   });
+
+  it('round-trips string values that look like YAML scalars (true, false, null, numbers)', async () => {
+    await mergeYamlConfig(path, {
+      botName: 'true', // string, not bool
+      description: 'null', // string, not null
+      version: '1.0', // string, not number
+      hex: '0x1a', // string, not int
+    });
+    const parsed = Bun.YAML.parse(readFileSync(path, 'utf-8')) as Record<string, unknown>;
+    expect(parsed.botName).toBe('true'); // string preserved, not boolean
+    expect(parsed.description).toBe('null'); // string preserved, not null
+    expect(parsed.version).toBe('1.0'); // string preserved, not number
+    expect(parsed.hex).toBe('0x1a'); // string preserved, not int
+  });
+
+  it('accepts a custom header parameter, falling back to the default when omitted', async () => {
+    // Default header
+    await mergeYamlConfig(path, { foo: 'bar' });
+    expect(readFileSync(path, 'utf-8')).toContain('# Managed by');
+
+    // Custom header
+    const path2 = join(dir, 'other.yaml');
+    await mergeYamlConfig(path2, { foo: 'bar' }, '# my custom header\n');
+    const content2 = readFileSync(path2, 'utf-8');
+    expect(content2).toContain('# my custom header');
+    expect(content2).not.toContain('# Managed by');
+  });
 });

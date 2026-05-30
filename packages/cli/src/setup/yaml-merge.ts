@@ -6,10 +6,10 @@
  *   (string-compare via JSON.stringify for primitive items).
  * - Writes a `.bak.<ISO timestamp>` backup next to the file before overwriting.
  *
- * Uses Bun's native YAML parser. Bun does not ship a YAML emitter as of 1.3,
- * so we serialize via a minimal YAML writer that handles the shapes Archon
- * uses (top-level scalars, nested plain objects, arrays of primitives).
- * The contract: `Bun.YAML.parse(stringifyYaml(x))` equals the deep-merged value.
+ * Uses Bun's native YAML parser and emitter (`Bun.YAML.parse` /
+ * `Bun.YAML.stringify`, available in Bun 1.3+). The contract:
+ * `Bun.YAML.parse(Bun.YAML.stringify(x))` equals the deep-merged value
+ * for the shapes Archon uses.
  */
 import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -49,7 +49,8 @@ function deepMerge(target: Json, source: Json): Json {
 
 export async function mergeYamlConfig(
   filePath: string,
-  patch: Record<string, Json>
+  patch: Record<string, Json>,
+  header = '# Archon configuration\n# Managed by `archon setup` — edits preserved on merge.\n'
 ): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
 
@@ -70,52 +71,5 @@ export async function mergeYamlConfig(
 
   const merged = deepMerge(existing as Json, patch as Json) as Record<string, Json>;
 
-  const header =
-    '# Archon configuration\n# Managed by `archon setup` — edits preserved on merge.\n';
-  await writeFile(filePath, header + stringifyYaml(merged), 'utf-8');
-}
-
-function stringifyYaml(value: Json, indent = 0): string {
-  const pad = '  '.repeat(indent);
-
-  if (value === null) return 'null\n';
-  if (typeof value === 'boolean' || typeof value === 'number') {
-    return `${String(value)}\n`;
-  }
-  if (typeof value === 'string') return `${quoteIfNeeded(value)}\n`;
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) return '[]\n';
-    let out = '\n';
-    for (const item of value) {
-      if (isObject(item) || Array.isArray(item)) {
-        out += `${pad}- ${stringifyYaml(item, indent + 1).trimStart()}`;
-      } else {
-        out += `${pad}- ${quoteIfNeeded(item)}\n`;
-      }
-    }
-    return out;
-  }
-
-  if (isObject(value)) {
-    if (Object.keys(value).length === 0) return '{}\n';
-    let out = indent === 0 ? '' : '\n';
-    for (const [k, v] of Object.entries(value)) {
-      if (isObject(v) || Array.isArray(v)) {
-        out += `${pad}${k}:${stringifyYaml(v, indent + 1)}`;
-      } else {
-        out += `${pad}${k}: ${quoteIfNeeded(v)}\n`;
-      }
-    }
-    return out;
-  }
-
-  return '';
-}
-
-function quoteIfNeeded(v: string | number | boolean | null): string {
-  if (typeof v !== 'string') return String(v);
-  // Safe-character subset → no quotes needed
-  if (/^[A-Za-z0-9_\-./]+$/.test(v)) return v;
-  return JSON.stringify(v);
+  await writeFile(filePath, header + Bun.YAML.stringify(merged), 'utf-8');
 }
