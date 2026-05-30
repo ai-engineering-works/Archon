@@ -5,7 +5,7 @@ describe('workflow schema: codegraph field', () => {
   const baseWorkflow = {
     name: 'test-wf',
     description: 'test',
-    nodes: [],
+    nodes: [{ id: 'n1', prompt: 'hello' }],
   };
 
   it('accepts codegraph: true', () => {
