@@ -5,7 +5,7 @@ import {
   resetClaudeMcpExtensionsForTests,
 } from '@archon/providers/claude/mcp-extensions';
 import * as detectModule from './codegraph-detect';
-import { codegraphMcpExtension } from './codegraph-mcp';
+import { codegraphMcpExtension, resetCodegraphMcpForTests } from './codegraph-mcp';
 import { registerClaudeMcpExtension } from '@archon/providers/claude/mcp-extensions';
 
 const baseCtx = {
@@ -18,6 +18,7 @@ const baseCtx = {
 describe('codegraphMcpExtension', () => {
   beforeEach(() => {
     resetClaudeMcpExtensionsForTests();
+    resetCodegraphMcpForTests();
     registerClaudeMcpExtension(codegraphMcpExtension);
   });
 

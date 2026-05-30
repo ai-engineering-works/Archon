@@ -63,6 +63,6 @@ export function resetCodegraphDetectionForTests(): void {
  * The MCP extension uses this to avoid awaiting inside an extension function
  * (the registry's `collectClaudeMcpExtensions` is synchronous).
  */
-export function getCachedCodegraphDetection(): CodegraphDetection | null {
+export function getCachedCodegraphDetection(): Readonly<CodegraphDetection> | null {
   return cache;
 }

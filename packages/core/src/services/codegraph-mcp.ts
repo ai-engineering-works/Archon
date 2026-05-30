@@ -74,6 +74,11 @@ export const codegraphMcpExtension = (ctx: ClaudeMcpCtx): Record<string, ClaudeM
   };
 };
 
+/** Test-only: reset module-level warn state. Production code MUST NOT call this. */
+export function resetCodegraphMcpForTests(): void {
+  warnedMissing = false;
+}
+
 // Self-register on module load. Production code triggers this via the
 // side-effect import in @archon/core/src/index.ts. Tests call
 // `resetClaudeMcpExtensionsForTests()` and then re-register manually if they
