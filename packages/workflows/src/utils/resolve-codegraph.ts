@@ -18,6 +18,10 @@ export interface ResolveCodegraphConfig {
 /**
  * Resolve the effective codegraph flag using a 3-tier precedence chain.
  *
+ * TODO(task-5-6): tighten parameter types to `Pick<DagNode, 'codegraph'>` and
+ * `Pick<WorkflowDefinition, 'codegraph'>` once Tasks 5 and 6 add the `codegraph`
+ * field to those schemas.
+ *
  * Parameters use the minimal `{ codegraph?: boolean }` shape rather than
  * `Pick<DagNode, 'codegraph'>` / `Pick<WorkflowDefinition, 'codegraph'>`
  * because those schemas do not yet have a codegraph field — that lands in
