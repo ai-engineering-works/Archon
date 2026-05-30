@@ -10,10 +10,7 @@ describe('dag-node schema: codegraph field', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      // The transform produces a typed variant; codegraph should be accessible
-      // on the result data (cast through unknown if the TS type doesn't expose it directly).
-      const data = result.data as { codegraph?: boolean };
-      expect(data.codegraph).toBe(true);
+      expect(result.data.codegraph).toBe(true);
     }
   });
 

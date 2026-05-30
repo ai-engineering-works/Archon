@@ -359,7 +359,14 @@ export type DagNode =
 // AI-specific fields that are meaningless on non-AI nodes
 // ---------------------------------------------------------------------------
 
-/** AI-specific fields that are meaningless on bash nodes — exported for loader warnings */
+/**
+ * AI-specific fields that are meaningless on bash nodes — exported for loader warnings.
+ *
+ * IMPORTANT: Keep in sync with the `aiOnly` spread inside `dagNodeSchema`'s `.transform()`
+ * (search for "AI-only fields" or `aiOnly` in this file). Every field added to both
+ * `dagNodeBaseSchema` AND the `aiOnly` spread must also appear here so loader.ts can
+ * warn users who set it on a non-AI node.
+ */
 export const BASH_NODE_AI_FIELDS: readonly string[] = [
   'provider',
   'model',
@@ -379,6 +386,7 @@ export const BASH_NODE_AI_FIELDS: readonly string[] = [
   'betas',
   'sandbox',
   'persist_session',
+  'codegraph',
 ];
 
 /** AI-specific fields that are meaningless on script nodes — same as bash nodes */
