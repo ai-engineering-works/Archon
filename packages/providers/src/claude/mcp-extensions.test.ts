@@ -48,4 +48,11 @@ describe('ClaudeMcpExtensions registry', () => {
     const result = collectClaudeMcpExtensions(fakeCtx);
     expect(Object.keys(result)).toEqual(['a', 'b', 'c']);
   });
+
+  it('propagates errors thrown by an extension', () => {
+    registerClaudeMcpExtension(() => {
+      throw new Error('extension failure');
+    });
+    expect(() => collectClaudeMcpExtensions(fakeCtx)).toThrow('extension failure');
+  });
 });

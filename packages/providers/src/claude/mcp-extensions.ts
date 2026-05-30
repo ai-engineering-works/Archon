@@ -8,19 +8,23 @@
  * New MCP integrations (codegraph and anything else) register themselves
  * here at module load. The provider source never needs another edit.
  */
-import type { DagNode } from '@archon/workflows/schemas/dag-node';
-import type { WorkflowDefinition } from '@archon/workflows/schemas/workflow';
 
 /**
  * Context passed to each extension function on every `sendQuery()` invocation.
+ *
+ * `workflow` and `node` use inline structural types rather than `Pick<WorkflowDefinition, ...>`
+ * / `Pick<DagNode, ...>` to keep this package from depending on @archon/workflows.
+ * TypeScript's structural typing means real WorkflowDefinition / DagNode values still
+ * pass through cleanly. See packages/workflows/src/utils/resolve-codegraph.ts for the
+ * same pattern.
  *
  * `config` uses a narrow shape (just the codegraph slice) to avoid an import
  * cycle from @archon/providers → @archon/core. Extensions that need other
  * config fields can widen this interface as they're added — keep it minimal.
  */
 export interface ClaudeMcpCtx {
-  workflow: Pick<WorkflowDefinition, 'codegraph'>;
-  node: Pick<DagNode, 'codegraph' | 'id'>;
+  workflow: { codegraph?: boolean };
+  node: { codegraph?: boolean; id: string };
   config: { codegraph?: { enabled?: boolean; watchDebounceMs?: number } };
   cwd: string;
 }
@@ -62,6 +66,10 @@ export function registerClaudeMcpExtension(fn: ClaudeMcpExtension): void {
  *
  * Later registrations overwrite earlier registrations on key collision
  * (shallow merge via `Object.assign`).
+ *
+ * If an extension function throws, the error propagates immediately to the
+ * caller — consistent with the Fail-Fast principle. Extensions are expected
+ * to handle their own degradation (e.g., return null on missing dependencies).
  */
 export function collectClaudeMcpExtensions(ctx: ClaudeMcpCtx): Record<string, ClaudeMcpEntry> {
   const merged: Record<string, ClaudeMcpEntry> = {};
