@@ -140,6 +140,12 @@ worktree:
 docs:
   path: docs  # Optional: default is docs/
 
+# CodeGraph MCP integration (Claude workflows only)
+codegraph:
+  enabled: true        # default: false; also overridden by ARCHON_CODEGRAPH_ENABLED
+  autoIndex: true      # default: true — run `codegraph init -i` on codebase register
+  watchDebounceMs: 2000  # default: 2000; clamped to [100, 60000]
+
 # Defaults configuration
 defaults:
   loadDefaultCommands: true   # Load app's bundled default commands at runtime
@@ -216,6 +222,20 @@ worktree:
 **Docs path behavior:** The `docs.path` setting controls where the `$DOCS_DIR` variable points. When not configured, `$DOCS_DIR` defaults to `docs/`. Unlike `$BASE_BRANCH`, this variable always has a safe default and never throws an error. Configure it when your documentation lives outside the standard `docs/` directory (e.g., `packages/docs-web/src/content/docs`).
 
 **Worktree path behavior:** By default, every repo's worktrees live under `~/.archon/workspaces/<owner>/<repo>/worktrees/<branch>` — outside the repo, invisible to the IDE. Set `worktree.path` to opt in to a **repo-local** layout instead: worktrees are created at `<repoRoot>/<worktree.path>/<branch>` so they show up in the file tree and editor workspace. A common choice is `.worktrees`. Because worktrees now live inside the repository tree, you should add the directory to your `.gitignore` (Archon does not modify user-owned files). The configured path must be relative to the repo root; absolute paths and paths containing `..` segments fail loudly at worktree creation rather than silently falling back.
+
+## codegraph
+
+Top-level block controlling the CodeGraph MCP integration for Claude workflows.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | Auto-attach codegraph MCP to every Claude node |
+| `autoIndex` | bool | `true` | Run `codegraph init -i` on codebase register |
+| `watchDebounceMs` | int | `2000` | Watcher debounce; clamped to [100, 60000] |
+
+The effective per-node flag resolves as `node.codegraph ?? workflow.codegraph ?? config.codegraph.enabled ?? false`. The `ARCHON_CODEGRAPH_ENABLED` environment variable takes precedence over the YAML `enabled` key when present.
+
+See the [CodeGraph reference](/reference/codegraph/) for full details including CLI commands, log catalog, and error handling.
 
 ## Environment Variables
 
