@@ -29,7 +29,7 @@ export async function bootstrapCodegraphIndex(sourcePath: string): Promise<Boots
   const startedAt = Date.now();
 
   try {
-    await execFileAsync('codegraph', ['init', '-i'], {
+    await execFileAsync(detection.path, ['init', '-i'], {
       cwd: sourcePath,
       timeout: INDEX_TIMEOUT_MS,
     });
@@ -40,7 +40,13 @@ export async function bootstrapCodegraphIndex(sourcePath: string): Promise<Boots
     const errorObj = err as NodeJS.ErrnoException & { stderr?: string; killed?: boolean };
     const durationMs = Date.now() - startedAt;
 
-    if (errorObj.killed || errorObj.code === 'ETIMEDOUT') {
+    // Real timeouts fire near INDEX_TIMEOUT_MS. External SIGTERM (parent
+    // shutdown, pkill) produces the same `killed: true` flag with arbitrary
+    // elapsed time — so we use elapsed-time proximity to disambiguate.
+    // Allow 500ms slack for SIGTERM delivery jitter.
+    const looksLikeTimeout = errorObj.killed === true && durationMs >= INDEX_TIMEOUT_MS - 500;
+
+    if (looksLikeTimeout) {
       log.error({ sourcePath, durationMs }, 'codegraph.index_timeout');
       return { ok: false, reason: 'index_timeout' };
     }
@@ -49,6 +55,6 @@ export async function bootstrapCodegraphIndex(sourcePath: string): Promise<Boots
       { sourcePath, durationMs, stderr: errorObj.stderr, err: errorObj.message },
       'codegraph.index_failed'
     );
-    return { ok: false, reason: 'index_failed', detail: errorObj.message };
+    return { ok: false, reason: 'index_failed', detail: errorObj.stderr ?? errorObj.message };
   }
 }
