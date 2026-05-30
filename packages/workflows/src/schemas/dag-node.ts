@@ -194,6 +194,13 @@ export const dagNodeBaseSchema = z.object({
   // a provider with sessionResume capability. Distinct from the Claude SDK's
   // AgentRequestOptions.persistSession (on-disk transcript persistence).
   persist_session: z.boolean().optional(),
+  /**
+   * Per-node override for codegraph MCP attach. Highest priority in the
+   * 3-tier resolution chain (node → workflow → config). Claude-only;
+   * non-Claude providers ignore the flag. See
+   * `@archon/workflows/utils/resolve-codegraph`.
+   */
+  codegraph: z.boolean().optional(),
 });
 
 export type DagNodeBase = z.infer<typeof dagNodeBaseSchema>;
@@ -598,6 +605,7 @@ export const dagNodeSchema = dagNodeBaseSchema
       ...(data.betas !== undefined ? { betas: data.betas } : {}),
       ...(data.sandbox !== undefined ? { sandbox: data.sandbox } : {}),
       ...(data.persist_session !== undefined ? { persist_session: data.persist_session } : {}),
+      ...(data.codegraph !== undefined ? { codegraph: data.codegraph } : {}),
     };
 
     if (data.command !== undefined && data.command.trim().length > 0) {
