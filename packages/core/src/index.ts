@@ -127,6 +127,7 @@ export { bootstrapCodegraphIndex, type BootstrapResult } from './services/codegr
 export {
   detectCodegraphBinary,
   getCachedCodegraphDetection,
+  invalidateCodegraphDetectionCache,
   type CodegraphDetection,
 } from './services/codegraph-detect';
 

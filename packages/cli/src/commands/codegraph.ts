@@ -23,9 +23,15 @@ const USAGE = `Usage:
   archon codegraph status [<codebase>]  - show index health (codegraph status)
 `;
 
+export const CODEGRAPH_INSTALL_URL_SH =
+  'https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh';
+export const CODEGRAPH_INSTALL_URL_PS1 =
+  'https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1';
+
 const INSTALL_HINT =
-  '`codegraph` binary not found on PATH. Install via: ' +
-  'curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh';
+  '`codegraph` binary not found on PATH. Install via: curl -fsSL ' +
+  CODEGRAPH_INSTALL_URL_SH +
+  ' | sh';
 
 export async function runCodegraphCommand(opts: CodegraphCommandOptions): Promise<void> {
   const sub = opts.args[0];

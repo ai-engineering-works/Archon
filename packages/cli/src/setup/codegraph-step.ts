@@ -23,10 +23,11 @@ import { appendFile, writeFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import {
   detectCodegraphBinary,
-  resetCodegraphDetectionForTests,
+  invalidateCodegraphDetectionCache,
 } from '@archon/core/services/codegraph-detect';
 import { execFileAsync } from '@archon/git';
 import { mergeYamlConfig } from './yaml-merge';
+import { CODEGRAPH_INSTALL_URL_SH, CODEGRAPH_INSTALL_URL_PS1 } from '../commands/codegraph';
 
 export interface CodegraphStepOptions {
   hasClaude: boolean;
@@ -43,32 +44,31 @@ const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
 
 function getInstallCommand(): { shell: string; shellArgs: string[] } {
   if (process.platform === 'win32') {
+    // PowerShell scriptblock form so we can pass arguments to the installer.
+    // The codegraph install.ps1 honors --target=none and --yes the same as the Unix version.
+    // TODO: verify Windows installer arg format against install.ps1 docs.
     return {
       shell: 'powershell',
-      shellArgs: [
-        '-Command',
-        'irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex',
-      ],
+      shellArgs: ['-Command', `& { irm ${CODEGRAPH_INSTALL_URL_PS1} | iex } --target=none --yes`],
     };
   }
   return {
     shell: 'sh',
-    shellArgs: [
-      '-c',
-      'curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh -s -- --target=none --yes',
-    ],
+    shellArgs: ['-c', `curl -fsSL ${CODEGRAPH_INSTALL_URL_SH} | sh -s -- --target=none --yes`],
   };
 }
 
 async function appendEnvLine(envPath: string, line: string): Promise<void> {
-  const key = line.split('=')[0];
   // If the file exists and already contains the key, replace in-place for idempotency.
   if (existsSync(envPath)) {
-    const existing = await readFile(envPath, 'utf-8');
-    if (existing.split('\n').some(l => l.startsWith(key + '='))) {
+    const rawContent = await readFile(envPath, 'utf-8');
+    // Normalize CRLF → LF so startsWith checks work on Windows-edited .env files.
+    const existing = rawContent.replace(/\r\n/g, '\n');
+    const keyPrefix = line.split('=')[0] + '=';
+    if (existing.split('\n').some(l => l.startsWith(keyPrefix))) {
       const updated = existing
         .split('\n')
-        .map(l => (l.startsWith(key + '=') ? line : l))
+        .map(l => (l.startsWith(keyPrefix) ? line : l))
         .join('\n');
       await writeFile(envPath, updated, 'utf-8');
       return;
@@ -93,10 +93,8 @@ export async function runCodegraphSetupStep(opts: CodegraphStepOptions): Promise
       const { shell, shellArgs } = getInstallCommand();
       await execFileAsync(shell, shellArgs, { timeout: INSTALL_TIMEOUT_MS });
 
-      // Detection cache may have cached found:false. Reset and re-probe.
-      // resetCodegraphDetectionForTests is the canonical cache-clear function —
-      // after a fresh install, the world has changed and we must re-probe.
-      resetCodegraphDetectionForTests();
+      // Detection cache may have cached found:false. Invalidate and re-probe.
+      invalidateCodegraphDetectionCache();
       detection = await detectCodegraphBinary();
 
       if (!detection.found) {

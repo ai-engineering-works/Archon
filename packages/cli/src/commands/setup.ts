@@ -2034,7 +2034,7 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
         return ans;
       },
       log: m => {
-        console.log(m);
+        log.info(m);
       },
     });
 

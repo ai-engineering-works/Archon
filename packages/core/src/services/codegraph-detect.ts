@@ -49,6 +49,16 @@ export async function detectCodegraphBinary(): Promise<CodegraphDetection> {
   return inflight;
 }
 
+/**
+ * Invalidate the detection cache. Call this after installing the binary
+ * (e.g., from the setup wizard) so the next `detectCodegraphBinary()` call
+ * re-probes instead of returning the stale "not found" result.
+ */
+export function invalidateCodegraphDetectionCache(): void {
+  cache = null;
+  inflight = null;
+}
+
 /** Test-only: reset the module-level cache. Production code MUST NOT call this. */
 export function resetCodegraphDetectionForTests(): void {
   cache = null;
