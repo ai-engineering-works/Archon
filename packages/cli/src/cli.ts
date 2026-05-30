@@ -743,7 +743,8 @@ async function main(): Promise<number> {
           log: m => {
             console.log(m);
           },
-          exit: ((c: number) => process.exit(c)) as (code: number) => never,
+          exit: (c: number) => process.exit(c),
+          cwd,
         });
         break;
       }
