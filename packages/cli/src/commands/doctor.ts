@@ -10,6 +10,12 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { execFileAsync } from '@archon/git';
 import { BUNDLED_IS_BINARY, getArchonHome, createLogger, getTelemetryStatus } from '@archon/paths';
+import type { CodegraphDetection } from '@archon/core/services/codegraph-detect';
+import {
+  detectCodegraphBinary,
+  invalidateCodegraphDetectionCache,
+} from '@archon/core/services/codegraph-detect';
+import { CODEGRAPH_INSTALL_URL_SH } from './codegraph';
 
 // Env vars that indicate a Pi backend API key is configured. Keep in sync with
 // `PI_BACKENDS` in setup.ts — these are the auth signals checkPi inspects.
@@ -65,6 +71,66 @@ export async function checkClaudeBinary(
       message: `${path} did not spawn: ${(err as Error).message}`,
     };
   }
+}
+
+/**
+ * Thin wrapper around `detectCodegraphBinary` so tests can spy on it by name
+ * without fighting the module-level cache inside `codegraph-detect.ts`.
+ * Matches the `probeAuthJsonExists` pattern for `existsSync`.
+ */
+export function probeCodegraphBinary(): Promise<CodegraphDetection> {
+  return detectCodegraphBinary();
+}
+
+/**
+ * Check whether codegraph is installed and available.
+ *
+ * Pass: binary detected.
+ * Skip: user hasn't opted in to codegraph (ARCHON_CODEGRAPH_ENABLED unset or not '1'/'true').
+ *       It's an optional feature; reporting fail would be noise for users who haven't enabled it.
+ * Fail: user opted in (ARCHON_CODEGRAPH_ENABLED=true or =1) but the binary is not on PATH.
+ *
+ * The skip-when-not-configured policy mirrors `checkGhAuth`: an optional feature
+ * not opted into is not a doctor failure.
+ */
+export async function checkCodegraph(env: NodeJS.ProcessEnv): Promise<CheckResult> {
+  const label = 'codegraph';
+
+  // Always re-probe: when doctor runs at the end of `archon setup`, the
+  // module-level cache may hold a stale "not found" from a pre-install probe.
+  invalidateCodegraphDetectionCache();
+  const detection = await probeCodegraphBinary();
+
+  const envVal = env.ARCHON_CODEGRAPH_ENABLED;
+  let optedIn: boolean;
+  if (envVal !== undefined) {
+    // Env var present — it's the override; trust it.
+    optedIn = envVal === 'true' || envVal === '1';
+  } else {
+    // No env var; fall back to config file via @archon/core's loadConfig.
+    const { loadConfig } = await import('@archon/core');
+    const cfg = await loadConfig();
+    optedIn = cfg.codegraph.enabled ?? false;
+  }
+
+  if (detection.found) {
+    return { label, status: 'pass', message: `${detection.path} (v${detection.version})` };
+  }
+
+  if (!optedIn) {
+    return {
+      label,
+      status: 'skip',
+      message: 'not enabled (set ARCHON_CODEGRAPH_ENABLED=true or run `archon setup` to opt in)',
+    };
+  }
+
+  return {
+    label,
+    status: 'fail',
+    message:
+      'binary not found on PATH. Install via: curl -fsSL ' + CODEGRAPH_INSTALL_URL_SH + ' | sh',
+  };
 }
 
 export async function checkGhAuth(env: NodeJS.ProcessEnv): Promise<CheckResult> {
@@ -298,6 +364,7 @@ export async function doctorCommand(
     ? checks.map(fn => fn())
     : [
         checkClaudeBinary(env),
+        checkCodegraph(env),
         checkGhAuth(env),
         checkPi(env),
         checkDatabase(),

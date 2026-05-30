@@ -358,7 +358,8 @@ async function resolveNodeProviderAndModel(
   conversationId: string,
   workflowRunId: string,
   _cwd: string,
-  workflowLevelOptions: WorkflowLevelOptions
+  workflowLevelOptions: WorkflowLevelOptions,
+  workflowCodegraph?: boolean
 ): Promise<{
   provider: string;
   model: string | undefined;
@@ -478,6 +479,15 @@ async function resolveNodeProviderAndModel(
     systemPrompt: node.systemPrompt,
     fallbackModel: fb,
   };
+
+  // Resolve effective codegraph flag: node > workflow > config (3-tier chain
+  // mirrors @archon/workflows/utils/resolve-codegraph). Provider reads this
+  // through nodeConfig.codegraph; no further executor change needed when
+  // future codegraph integrations are added.
+  const effectiveCodegraph = node.codegraph ?? workflowCodegraph ?? config.codegraph?.enabled;
+  if (effectiveCodegraph !== undefined) {
+    nodeConfig.codegraph = effectiveCodegraph;
+  }
 
   // Pass assistantConfig from config — provider parses internally
   const assistantConfig = config.assistants[provider] ?? {};
@@ -2390,7 +2400,8 @@ async function executeApprovalNode(
   config: WorkflowConfig,
   workflowLevelOptions: WorkflowLevelOptions,
   configuredCommandFolder?: string,
-  issueContext?: string
+  issueContext?: string,
+  workflowCodegraph?: boolean
 ): Promise<NodeOutput> {
   const msgContext = { workflowId: workflowRun.id, nodeName: node.id };
 
@@ -2480,7 +2491,8 @@ async function executeApprovalNode(
       conversationId,
       workflowRun.id,
       cwd,
-      workflowLevelOptions
+      workflowLevelOptions,
+      workflowCodegraph
     );
 
     const output = await executeNodeInternal(
@@ -2567,6 +2579,9 @@ export async function executeDagWorkflow(
     nodes: readonly DagNode[];
     /** Workflow-level default for per-node `persist_session` (read directly here). */
     persist_sessions?: boolean;
+    /** Workflow-level codegraph flag — middle tier in the 3-tier chain
+     *  (node.codegraph ?? workflow.codegraph ?? config.codegraph?.enabled). */
+    codegraph?: boolean;
   } & WorkflowLevelOptions,
   workflowRun: WorkflowRun,
   workflowProvider: string,
@@ -2911,7 +2926,8 @@ export async function executeDagWorkflow(
               config,
               workflowLevelOptions,
               configuredCommandFolder,
-              issueContext
+              issueContext,
+              workflow.codegraph
             );
             return { nodeId: node.id, output };
           }
@@ -2978,7 +2994,8 @@ export async function executeDagWorkflow(
             conversationId,
             workflowRun.id,
             cwd,
-            workflowLevelOptions
+            workflowLevelOptions,
+            workflow.codegraph
           );
 
           // 5. Determine session — parallel or context:fresh → always fresh

@@ -18,6 +18,8 @@ import {
 import { findMarkdownFilesRecursive } from '../utils/commands';
 import { createLogger } from '@archon/paths';
 import { resolveDefaultAssistant } from '../config/resolve-assistant';
+import { loadConfig } from '../config/config-loader';
+import { bootstrapCodegraphIndex } from '../services/codegraph-bootstrap';
 
 /** Lazy-initialized logger (deferred so test mocks can intercept createLogger) */
 let cachedLog: ReturnType<typeof createLogger> | undefined;
@@ -227,6 +229,32 @@ async function registerRepoAtPath(
       commandsLoaded = markdownFiles.length;
       break;
     }
+  }
+
+  // Bootstrap the codegraph index for this repo. The call awaits completion
+  // (up to 10 min; the bootstrap service enforces the timeout internally).
+  // Registration is NOT blocked on codegraph *failure* — the service returns
+  // a discriminated union and never throws; only loadConfig errors are caught
+  // here. To skip indexing, set codegraph.enabled or codegraph.autoIndex to
+  // false in config.
+  try {
+    // Repo YAML is read twice during registration today (also inside
+    // resolveDefaultAssistant upstream). The global config is module-cached;
+    // the per-repo read is a fresh ENOENT on new registrations (cheap). A
+    // future refactor can pass the resolved config forward from
+    // resolveDefaultAssistant to eliminate the duplicate.
+    const config = await loadConfig(targetPath);
+    if (config.codegraph.enabled && config.codegraph.autoIndex) {
+      await bootstrapCodegraphIndex(targetPath);
+    }
+  } catch (err) {
+    // Defensive: bootstrapCodegraphIndex is contractually never-throw, but
+    // loadConfig could throw on YAML parse errors. We still don't want
+    // registration to fail because the user has a broken config.
+    getLog().warn(
+      { err: (err as Error).message, codebaseId: codebase.id, phase: 'registration' },
+      'codegraph.bootstrap_skipped'
+    );
   }
 
   return {

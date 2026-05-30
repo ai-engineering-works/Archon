@@ -194,6 +194,13 @@ export const dagNodeBaseSchema = z.object({
   // a provider with sessionResume capability. Distinct from the Claude SDK's
   // AgentRequestOptions.persistSession (on-disk transcript persistence).
   persist_session: z.boolean().optional(),
+  /**
+   * Per-node override for codegraph MCP attach. Highest priority in the
+   * 3-tier resolution chain (node → workflow → config). Claude-only;
+   * non-Claude providers ignore the flag. See
+   * `@archon/workflows/utils/resolve-codegraph`.
+   */
+  codegraph: z.boolean().optional(),
 });
 
 export type DagNodeBase = z.infer<typeof dagNodeBaseSchema>;
@@ -352,7 +359,14 @@ export type DagNode =
 // AI-specific fields that are meaningless on non-AI nodes
 // ---------------------------------------------------------------------------
 
-/** AI-specific fields that are meaningless on bash nodes — exported for loader warnings */
+/**
+ * AI-specific fields that are meaningless on bash nodes — exported for loader warnings.
+ *
+ * IMPORTANT: Keep in sync with the `aiOnly` spread inside `dagNodeSchema`'s `.transform()`
+ * (search for "AI-only fields" or `aiOnly` in this file). Every field added to both
+ * `dagNodeBaseSchema` AND the `aiOnly` spread must also appear here so loader.ts can
+ * warn users who set it on a non-AI node.
+ */
 export const BASH_NODE_AI_FIELDS: readonly string[] = [
   'provider',
   'model',
@@ -372,6 +386,7 @@ export const BASH_NODE_AI_FIELDS: readonly string[] = [
   'betas',
   'sandbox',
   'persist_session',
+  'codegraph',
 ];
 
 /** AI-specific fields that are meaningless on script nodes — same as bash nodes */
@@ -598,6 +613,7 @@ export const dagNodeSchema = dagNodeBaseSchema
       ...(data.betas !== undefined ? { betas: data.betas } : {}),
       ...(data.sandbox !== undefined ? { sandbox: data.sandbox } : {}),
       ...(data.persist_session !== undefined ? { persist_session: data.persist_session } : {}),
+      ...(data.codegraph !== undefined ? { codegraph: data.codegraph } : {}),
     };
 
     if (data.command !== undefined && data.command.trim().length > 0) {

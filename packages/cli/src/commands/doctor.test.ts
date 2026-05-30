@@ -12,8 +12,10 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { mkdirSync, rmSync } from 'fs';
 import * as git from '@archon/git';
+import * as archonCore from '@archon/core';
 import {
   checkClaudeBinary,
+  checkCodegraph,
   checkDatabase,
   checkGhAuth,
   checkPi,
@@ -427,6 +429,70 @@ describe('checkTelemetry', () => {
     const result = await checkTelemetry();
     expect(result.status).toBe('skip');
     expect(result.message).toContain('ARCHON_TELEMETRY_DISABLED');
+  });
+});
+
+describe('checkCodegraph', () => {
+  // Spy on the exported `probeCodegraphBinary` wrapper rather than the raw
+  // `detectCodegraphBinary` from `@archon/core/services/codegraph-detect`.
+  // The raw function has a module-level cache that would bleed across tests
+  // if we let it run; the wrapper pattern (same as `probeAuthJsonExists` for Pi)
+  // keeps the spy boundary clean and spy.mockRestore() works correctly.
+  let codegraphSpy: ReturnType<typeof spyOn<typeof doctorModule, 'probeCodegraphBinary'>>;
+
+  beforeEach(() => {
+    codegraphSpy = spyOn(doctorModule, 'probeCodegraphBinary');
+  });
+
+  afterEach(() => {
+    codegraphSpy.mockRestore();
+  });
+
+  it('returns pass with version when codegraph binary is detected', async () => {
+    codegraphSpy.mockResolvedValue({ found: true, path: 'codegraph', version: '0.18.3' });
+
+    const result = await checkCodegraph({});
+    expect(result.status).toBe('pass');
+    expect(result.label).toBe('codegraph');
+    expect(result.message).toContain('0.18.3');
+  });
+
+  it('returns skip when user has not opted in and binary is missing', async () => {
+    codegraphSpy.mockResolvedValue({ found: false });
+
+    const result = await checkCodegraph({});
+    expect(result.status).toBe('skip');
+    expect(result.label).toBe('codegraph');
+    expect(result.message.toLowerCase()).toContain('not enabled');
+  });
+
+  it('returns fail with install hint when binary is missing AND user has opted in', async () => {
+    codegraphSpy.mockResolvedValue({ found: false });
+
+    const result = await checkCodegraph({ ARCHON_CODEGRAPH_ENABLED: 'true' });
+    expect(result.status).toBe('fail');
+    expect(result.label).toBe('codegraph');
+    expect(result.message.toLowerCase()).toContain('install');
+  });
+
+  it('returns fail when opted in via config.yaml (no env var) and binary is missing', async () => {
+    // Simulate YAML-only opt-in: no ARCHON_CODEGRAPH_ENABLED env var, but
+    // config.codegraph.enabled is true. Previously doctor reported 'skip' in
+    // this case — now it must report 'fail' with an install hint.
+    const loadConfigSpy = spyOn(archonCore, 'loadConfig').mockResolvedValue({
+      codegraph: { enabled: true, autoIndex: true, watchDebounceMs: 2000 },
+    } as Awaited<ReturnType<typeof archonCore.loadConfig>>);
+
+    codegraphSpy.mockResolvedValue({ found: false });
+
+    // Empty env — no ARCHON_CODEGRAPH_ENABLED set
+    const result = await checkCodegraph({});
+
+    expect(result.status).toBe('fail');
+    expect(result.label).toBe('codegraph');
+    expect(result.message.toLowerCase()).toContain('install');
+
+    loadConfigSpy.mockRestore();
   });
 });
 

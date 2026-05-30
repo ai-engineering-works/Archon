@@ -61,9 +61,22 @@ mock.module('@archon/paths', () => ({
 }));
 
 // ── config-loader mock ──────────────────────────────────────────────────────
-const mockLoadConfig = mock(() => Promise.resolve({ assistant: 'claude' }));
+const mockLoadConfig = mock(() =>
+  Promise.resolve({
+    assistant: 'claude',
+    codegraph: { enabled: false, autoIndex: true, watchDebounceMs: 2000 },
+  })
+);
 mock.module('../config/config-loader', () => ({
   loadConfig: mockLoadConfig,
+}));
+
+// ── codegraph-bootstrap mock ─────────────────────────────────────────────────
+const mockBootstrapCodegraphIndex = mock(() =>
+  Promise.resolve({ ok: false as const, reason: 'binary_missing' as const })
+);
+mock.module('../services/codegraph-bootstrap', () => ({
+  bootstrapCodegraphIndex: mockBootstrapCodegraphIndex,
 }));
 
 // ── utils/commands mock ─────────────────────────────────────────────────────
@@ -110,7 +123,15 @@ function clearMocks(): void {
   mockUpdateCodebase.mockReset();
   mockFindMarkdownFilesRecursive.mockReset();
   mockLoadConfig.mockReset();
-  mockLoadConfig.mockResolvedValue({ assistant: 'claude' });
+  mockLoadConfig.mockResolvedValue({
+    assistant: 'claude',
+    codegraph: { enabled: false, autoIndex: true, watchDebounceMs: 2000 },
+  });
+  mockBootstrapCodegraphIndex.mockReset();
+  mockBootstrapCodegraphIndex.mockResolvedValue({
+    ok: false as const,
+    reason: 'binary_missing' as const,
+  });
   mockLogger.info.mockClear();
   mockLogger.debug.mockClear();
   mockLogger.warn.mockClear();
@@ -1202,5 +1223,118 @@ describe('RegisterResult shape', () => {
 
     expect(result.alreadyExisted).toBe(true);
     expect(result.commandCount).toBe(0);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+describe('registerRepoAtPath: codegraph bootstrap', () => {
+  beforeEach(() => {
+    clearMocks();
+    restoreSpies();
+    setupSpies();
+
+    // Default git behaviour: valid repo + remote URL
+    spyExecFileAsync.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('rev-parse')) return Promise.resolve({ stdout: '.git', stderr: '' });
+      if (args.includes('get-url'))
+        return Promise.resolve({ stdout: 'https://github.com/owner/repo', stderr: '' });
+      return Promise.resolve({ stdout: '', stderr: '' });
+    });
+    mockFindCodebaseByDefaultCwd.mockResolvedValue(null);
+    mockCreateCodebase.mockResolvedValue(makeCodebase() as ReturnType<typeof makeCodebase>);
+  });
+
+  test('calls bootstrapCodegraphIndex when codegraph.enabled && autoIndex are true', async () => {
+    mockLoadConfig.mockResolvedValue({
+      assistant: 'claude',
+      codegraph: { enabled: true, autoIndex: true, watchDebounceMs: 2000 },
+    });
+    mockBootstrapCodegraphIndex.mockResolvedValue({ ok: true as const, durationMs: 500 });
+
+    const result = await registerRepository('/home/user/myrepo');
+
+    expect(result.alreadyExisted).toBe(false);
+    expect(mockBootstrapCodegraphIndex.mock.calls.length).toBe(1);
+    expect(mockBootstrapCodegraphIndex.mock.calls[0]?.[0]).toBe('/home/user/myrepo');
+  });
+
+  test('does NOT call bootstrap when codegraph.enabled is false', async () => {
+    mockLoadConfig.mockResolvedValue({
+      assistant: 'claude',
+      codegraph: { enabled: false, autoIndex: true, watchDebounceMs: 2000 },
+    });
+
+    await registerRepository('/home/user/myrepo');
+
+    expect(mockBootstrapCodegraphIndex.mock.calls.length).toBe(0);
+  });
+
+  test('does NOT call bootstrap when codegraph.autoIndex is false', async () => {
+    mockLoadConfig.mockResolvedValue({
+      assistant: 'claude',
+      codegraph: { enabled: true, autoIndex: false, watchDebounceMs: 2000 },
+    });
+
+    await registerRepository('/home/user/myrepo');
+
+    expect(mockBootstrapCodegraphIndex.mock.calls.length).toBe(0);
+  });
+
+  test('does NOT call bootstrap when codebase already existed', async () => {
+    mockLoadConfig.mockResolvedValue({
+      assistant: 'claude',
+      codegraph: { enabled: true, autoIndex: true, watchDebounceMs: 2000 },
+    });
+    // Simulate path already registered
+    mockFindCodebaseByDefaultCwd.mockResolvedValue(
+      makeCodebase({ id: 'existing-codebase-id' }) as ReturnType<typeof makeCodebase>
+    );
+
+    const result = await registerRepository('/home/user/myrepo');
+
+    expect(result.alreadyExisted).toBe(true);
+    expect(mockBootstrapCodegraphIndex.mock.calls.length).toBe(0);
+  });
+
+  test('registration succeeds even when bootstrap returns ok: false', async () => {
+    mockLoadConfig.mockResolvedValue({
+      assistant: 'claude',
+      codegraph: { enabled: true, autoIndex: true, watchDebounceMs: 2000 },
+    });
+    mockBootstrapCodegraphIndex.mockResolvedValue({
+      ok: false as const,
+      reason: 'binary_missing' as const,
+    });
+
+    const result = await registerRepository('/home/user/myrepo');
+
+    expect(result.alreadyExisted).toBe(false);
+    expect(result.codebaseId).toBe('codebase-uuid-1');
+  });
+
+  test('registration succeeds even when bootstrap throws unexpectedly', async () => {
+    mockLoadConfig.mockResolvedValue({
+      assistant: 'claude',
+      codegraph: { enabled: true, autoIndex: true, watchDebounceMs: 2000 },
+    });
+    mockBootstrapCodegraphIndex.mockRejectedValue(new Error('unexpected crash'));
+
+    const result = await registerRepository('/home/user/myrepo');
+
+    expect(result.alreadyExisted).toBe(false);
+    expect(result.codebaseId).toBe('codebase-uuid-1');
+    // The warn should have been logged for the unexpected error
+    expect(mockLogger.warn.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  test('registration succeeds even when loadConfig throws', async () => {
+    mockLoadConfig.mockRejectedValue(new Error('YAML parse error'));
+
+    const result = await registerRepository('/home/user/myrepo');
+
+    expect(result.alreadyExisted).toBe(false);
+    expect(result.codebaseId).toBe('codebase-uuid-1');
+    expect(mockBootstrapCodegraphIndex.mock.calls.length).toBe(0);
+    expect(mockLogger.warn.mock.calls.length).toBeGreaterThan(0);
   });
 });

@@ -1,0 +1,6 @@
+name: codegraph-smoke
+description: Smoke test for the codegraph MCP attachment. Asks Claude to find callers of `bar`.
+codegraph: true
+nodes:
+  - id: find-callers
+    prompt: 'Use codegraph tools to find all callers of the function `bar` in this repository. Reply with just the function names that call `bar`, one per line.'

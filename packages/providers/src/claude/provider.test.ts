@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach, spyOn } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, spyOn, it, afterEach } from 'bun:test';
 import { createMockLogger } from '../test/mocks/logger';
 
 const mockLogger = createMockLogger();
@@ -16,9 +16,21 @@ mock.module('@anthropic-ai/claude-agent-sdk', () => ({
   query: mockQuery,
 }));
 
+// Controllable mock for loadMcpConfig — tests that exercise nodeConfig.mcp
+// override this via spyOn(mcpConfigModule, 'loadMcpConfig')
+const mockLoadMcpConfig = mock(async (_path: string, _cwd: string) => ({
+  servers: {} as Record<string, unknown>,
+  serverNames: [] as string[],
+  missingVars: [] as string[],
+}));
+mock.module('../mcp/config', () => ({
+  loadMcpConfig: mockLoadMcpConfig,
+}));
+
 import { ClaudeProvider, shouldPassNoEnvFile } from './provider';
 import * as claudeModule from './provider';
 import * as binaryResolver from './binary-resolver';
+import { registerClaudeMcpExtension, resetClaudeMcpExtensionsForTests } from './mcp-extensions';
 
 describe('shouldPassNoEnvFile', () => {
   test('returns false when cliPath is undefined (dev mode — SDK 0.2.x resolves a native binary)', () => {
@@ -1452,5 +1464,152 @@ describe('sendQuery decomposition behaviors', () => {
       );
       expect(warnCalls).toHaveLength(0);
     });
+  });
+});
+
+// ─── MCP extension registry integration ──────────────────────────────────────
+
+describe('ClaudeProvider: MCP extensions are merged into mcpServers', () => {
+  let client: ClaudeProvider;
+
+  beforeEach(() => {
+    client = new ClaudeProvider({ retryBaseDelayMs: 1 });
+    mockQuery.mockClear();
+    mockLoadMcpConfig.mockClear();
+    resetClaudeMcpExtensionsForTests();
+  });
+
+  afterEach(() => {
+    resetClaudeMcpExtensionsForTests();
+  });
+
+  it('extension entry is merged into the final mcpServers passed to Claude SDK', async () => {
+    registerClaudeMcpExtension(() => ({
+      testExt: { type: 'stdio', command: 'foo', args: ['bar'] },
+    }));
+
+    mockQuery.mockImplementation(async function* () {
+      yield { type: 'result', session_id: 'sid' };
+    });
+
+    for await (const _ of client.sendQuery('test', '/workspace', undefined, {
+      nodeConfig: { nodeId: 'my-node' },
+    })) {
+      // consume
+    }
+
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    const callArgs = mockQuery.mock.calls[0][0] as { options: Record<string, unknown> };
+    const mcpServers = callArgs.options.mcpServers as Record<string, { command: string }>;
+    expect(mcpServers).toBeDefined();
+    expect(mcpServers['testExt']).toEqual({ type: 'stdio', command: 'foo', args: ['bar'] });
+  });
+
+  it('user-supplied node.mcp entries win on key collision with extension entries', async () => {
+    registerClaudeMcpExtension(() => ({
+      shared: { type: 'stdio', command: 'fromExtension', args: [] },
+    }));
+
+    // loadMcpConfig returns a 'shared' server from the user-supplied mcp file.
+    // Use mockResolvedValue (not mockResolvedValueOnce) because applyNodeConfig
+    // is called twice inside sendQuery: once for warning extraction and once for
+    // the actual attempt options.
+    mockLoadMcpConfig.mockResolvedValue({
+      servers: { shared: { type: 'stdio', command: 'fromUser', args: [] } },
+      serverNames: ['shared'],
+      missingVars: [],
+    });
+
+    mockQuery.mockImplementation(async function* () {
+      yield { type: 'result', session_id: 'sid' };
+    });
+
+    for await (const _ of client.sendQuery('test', '/workspace', undefined, {
+      nodeConfig: { mcp: '/path/to/mcp.json' },
+    })) {
+      // consume
+    }
+
+    mockLoadMcpConfig.mockReset(); // restore default for subsequent tests
+
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    const callArgs = mockQuery.mock.calls[0][0] as { options: Record<string, unknown> };
+    const mcpServers = callArgs.options.mcpServers as Record<string, { command: string }>;
+    // User-supplied entry must win — 'fromUser', not 'fromExtension'
+    expect(mcpServers['shared'].command).toBe('fromUser');
+  });
+
+  it('existing node.mcp entries with non-colliding keys are preserved when extensions add entries', async () => {
+    registerClaudeMcpExtension(() => ({
+      extOnly: { type: 'stdio', command: 'extCmd', args: [] },
+    }));
+
+    // loadMcpConfig returns a 'userOnly' server from the user-supplied mcp file.
+    // Use mockResolvedValue (not mockResolvedValueOnce) because applyNodeConfig
+    // is called twice inside sendQuery.
+    mockLoadMcpConfig.mockResolvedValue({
+      servers: { userOnly: { type: 'stdio', command: 'userCmd', args: [] } },
+      serverNames: ['userOnly'],
+      missingVars: [],
+    });
+
+    mockQuery.mockImplementation(async function* () {
+      yield { type: 'result', session_id: 'sid' };
+    });
+
+    for await (const _ of client.sendQuery('test', '/workspace', undefined, {
+      nodeConfig: { mcp: '/path/to/mcp.json' },
+    })) {
+      // consume
+    }
+
+    mockLoadMcpConfig.mockReset(); // restore default for subsequent tests
+
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    const callArgs = mockQuery.mock.calls[0][0] as { options: Record<string, unknown> };
+    const mcpServers = callArgs.options.mcpServers as Record<string, { command: string }>;
+    // Both keys must be present
+    expect(mcpServers['extOnly']).toBeDefined();
+    expect(mcpServers['userOnly']).toBeDefined();
+    expect(mcpServers['extOnly'].command).toBe('extCmd');
+    expect(mcpServers['userOnly'].command).toBe('userCmd');
+  });
+
+  it('extension wildcards are added to allowedTools', async () => {
+    registerClaudeMcpExtension(() => ({
+      myExtServer: { type: 'stdio', command: 'srv', args: [] },
+    }));
+
+    mockQuery.mockImplementation(async function* () {
+      yield { type: 'result', session_id: 'sid' };
+    });
+
+    for await (const _ of client.sendQuery('test', '/workspace', undefined, {
+      nodeConfig: { nodeId: 'n1' },
+    })) {
+      // consume
+    }
+
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    const callArgs = mockQuery.mock.calls[0][0] as { options: Record<string, unknown> };
+    const allowedTools = callArgs.options.allowedTools as string[] | undefined;
+    expect(allowedTools).toContain('mcp__myExtServer__*');
+  });
+
+  it('no mcpServers set when no extensions registered and no nodeConfig.mcp', async () => {
+    // Registry is empty (reset in beforeEach), no nodeConfig.mcp — mcpServers stays undefined
+    mockQuery.mockImplementation(async function* () {
+      yield { type: 'result', session_id: 'sid' };
+    });
+
+    for await (const _ of client.sendQuery('test', '/workspace', undefined, {
+      nodeConfig: { nodeId: 'n1' },
+    })) {
+      // consume
+    }
+
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    const callArgs = mockQuery.mock.calls[0][0] as { options: Record<string, unknown> };
+    expect(callArgs.options.mcpServers).toBeUndefined();
   });
 });

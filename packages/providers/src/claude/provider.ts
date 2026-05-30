@@ -41,6 +41,7 @@ import { CLAUDE_CAPABILITIES } from './capabilities';
 import { resolveClaudeBinaryPath } from './binary-resolver';
 import { createLogger } from '@archon/paths';
 import { loadMcpConfig } from '../mcp/config';
+import { collectClaudeMcpExtensions, type ClaudeMcpCtx } from './mcp-extensions';
 
 /** Lazy-initialized logger (deferred so test mocks can intercept createLogger) */
 let cachedLog: ReturnType<typeof createLogger> | undefined;
@@ -339,6 +340,40 @@ async function applyNodeConfig(
           'Using Haiku model with MCP servers — tool search (lazy loading for many tools) is not supported on Haiku. Consider using Sonnet or Opus.',
       });
     }
+  }
+
+  // After the user-supplied node.mcp entries are in place, ask all registered
+  // Claude MCP extensions (registered at module load by self-registering files
+  // like @archon/core/services/codegraph-mcp) for additional entries. User-
+  // supplied entries win on key collision (they go LAST in the spread).
+  const extensionCtx: ClaudeMcpCtx = {
+    // workflow and config are kept empty because applyNodeConfig has no direct
+    // access to them. The 3-tier resolution is performed by dag-executor before
+    // dispatch — node.codegraph here carries the already-resolved effective flag.
+    workflow: {},
+    config: {},
+    node: {
+      codegraph: nodeConfig.codegraph,
+      id: nodeConfig.nodeId ?? 'unknown',
+    },
+    cwd,
+  };
+  // NOTE: applyNodeConfig is invoked twice per sendQuery — once on a throwaway
+  // Options for warning extraction, then again for the real attempt. Extensions
+  // are called both times; extension authors should keep side effects idempotent
+  // or use one-shot guards (see codegraphMcpExtension.warnedMissing pattern).
+  const extensionEntries = collectClaudeMcpExtensions(extensionCtx);
+  if (Object.keys(extensionEntries).length > 0) {
+    // Spread extension entries first; existing user mcpServers wins on collision.
+    options.mcpServers = {
+      ...extensionEntries,
+      ...(options.mcpServers ?? {}),
+    } as Options['mcpServers'];
+
+    // Also extend allowedTools with wildcards for the extension entries so the
+    // model can actually use them (parallel to how user-supplied mcp does it).
+    const extWildcards = Object.keys(extensionEntries).map(name => `mcp__${name}__*`);
+    options.allowedTools = [...(options.allowedTools ?? []), ...extWildcards];
   }
 
   // skills → AgentDefinition wrapping

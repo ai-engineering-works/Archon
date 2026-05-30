@@ -76,6 +76,10 @@ export interface WorkflowConfig {
   docsPath?: string;
   envVars?: Record<string, string>;
   commands: { folder?: string };
+  /** Global codegraph flag — lowest priority in the 3-tier chain
+   *  (node.codegraph ?? workflow.codegraph ?? config.codegraph?.enabled).
+   *  Set `codegraph.enabled: true` in .archon/config.yaml to enable for all workflows. */
+  codegraph?: { enabled?: boolean };
   defaults?: {
     loadDefaultWorkflows?: boolean;
     loadDefaultCommands?: boolean;
