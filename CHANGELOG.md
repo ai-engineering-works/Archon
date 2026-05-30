@@ -7,13 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-30
+
+CodeGraph MCP integration for Claude workflows — ~25% cheaper, ~57% fewer tokens, ~62% fewer tool calls on structural code queries. Plus the latest upstream syncs.
+
+### Added
+
+- **CodeGraph MCP integration for Claude workflows** (PR #1). A local code knowledge graph (tree-sitter + SQLite + FTS5) auto-attaches as an MCP server on Claude nodes when enabled. Three-tier resolution (`node ?? workflow ?? config.codegraph.enabled`) mirrors how `provider` and `model` resolve today. New extension registry in `@archon/providers/claude/mcp-extensions.ts` lets future MCP integrations plug in without editing `provider.ts`. Codegraph extension self-registers from `@archon/core` so layering invariants stay intact (`@archon/providers` does not depend on core or workflows). Fail-open everywhere: missing binary, failed index, copy errors all log + degrade gracefully. Backwards compatible: defaults to `false`.
+- **`archon codegraph index|sync|status [<path>]` CLI** — thin wrappers over the codegraph binary, with ENOENT install hint and `--cwd` flag forwarding.
+- **`archon setup` codegraph step** — conditional on Claude being selected; offers to install codegraph (`--target=none --yes` so it never registers itself in `~/.claude.json`), writes both `ARCHON_CODEGRAPH_ENABLED=true` to `~/.archon/.env` and `codegraph.enabled: true` plus `.codegraph` in `worktree.copyFiles` to `~/.archon/config.yaml`. Install failure logs and continues (never blocks setup).
+- **`archon doctor` codegraph row** — reports `pass` with version when present, `skip` when not opted in, `fail` with install hint when opted in but missing. Reads both env var and YAML opt-in signals; busts the detection cache before probing so freshly-installed binaries show up immediately.
+- **`bootstrapCodegraphIndex` on codebase register** — runs `codegraph init -i` against the source path when `config.codegraph.enabled && config.codegraph.autoIndex`. Fire-and-forget; never fails registration.
+- **YAML-merge utility for setup wizard** — read-merge-write helper that preserves user-added keys, deep-merges nested objects, dedupes array entries, and writes a timestamped `.bak.<ISO ts>` backup before overwriting. Uses `Bun.YAML.parse`/`stringify` for correct round-tripping (including YAML-scalar look-alike strings like `"true"`, `"null"`, `"1.0"`).
+- **`codegraph` schema field at workflow + node level** with proper `BASH_NODE_AI_FIELDS` wiring so the loader warns if `codegraph` is set on a non-AI node type.
+- **Skippable integration smoke test** for the codegraph end-to-end path (skips automatically when the codegraph binary isn't on PATH; runs full archon → claude → codegraph chain when both binaries are available).
+- **Documentation**: new [getting-started/codegraph](packages/docs-web/src/content/docs/getting-started/codegraph.md) and [reference/codegraph](packages/docs-web/src/content/docs/reference/codegraph.md) pages, plus a configuration reference section.
+- **Per-node provider sessions persisted across workflow re-runs** with opt-in `persist_session: true` (workflow-level default via `persist_sessions: true`). Requires a provider with the `sessionResume` capability. New `workflow_node_sessions` table keyed by `(workflow_name, node_id, scope_key, provider)`. New `archon workflow reset-sessions` command. (#1790)
+- **Telemetry umbrella trust fixes**: CI auto-disable, first-run notice, `archon telemetry status/reset` CLI. (#1780)
+- **`condition_evaluator` shorthand path support** and unquoted numeric/boolean RHS in workflow conditions. (#1777)
+
+### Changed
+
+- **`@archon/workflows` DAG executor** resolves the effective codegraph flag before dispatching to Claude, threading it through `nodeConfig.codegraph` so the provider's extension call sees the propagated value. Closes the spec gap where workflow-level and config-level flags wouldn't reach the Claude SDK.
+- **Provider session management** standardized on the new `WorkflowConfig.codegraph?: { enabled?: boolean }` shape in `@archon/workflows/deps`.
+- **Bun upgrade**: requires Bun `^1.3.0` (uses `Bun.YAML.parse`/`stringify`). Older Bun versions will fail YAML loading.
+- **Zod v4** standardized across the codebase. (#1813)
+- **Pi SDK** migrated to `@earendil-works/pi-coding-agent`. (#1800)
+
 ### Fixed
 
-- **DAG nodes no longer silently complete when `idle_timeout` fires before any output is produced.**
-  Previously, an idle timeout with zero output was incorrectly recorded as `completed`. Now it fails
-  with a clear error: `"Node '<id>' timed out with no output … Consider increasing idle_timeout or
-  reducing prompt size."` Nodes that do produce output before the subprocess hangs still complete
-  with a warning, unchanged (#1807).
+- **DAG nodes no longer silently complete when `idle_timeout` fires before any output is produced.** Idle timeout with zero output now fails the node with a clear error instead of being recorded as `completed`. (#1807, #1812)
+- **Postgres schema auto-applied on startup** — the idempotent `migrations/000_combined.sql` runs inside an advisory-lock transaction on first connection so upgrades that add tables or columns converge automatically. (#1810)
+- **Workflow loader** stops silently dropping workflow-level `effort` / `thinking` / `fallbackModel` / `betas` / `sandbox` fields. (#1799)
+- **GitHub App canonical Docker deploy recipe** documented (port → 127.0.0.1, Caddy `/internal/*` drop, opt-out flag). (#1795)
+- **User-identity extraction** moved into adapter callbacks. (#1801)
+- **Close parallel-definition drift** between interfaces and Zod schemas. (#1802)
 
 ## [0.4.1] - 2026-05-28
 
