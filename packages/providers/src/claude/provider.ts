@@ -347,14 +347,21 @@ async function applyNodeConfig(
   // like @archon/core/services/codegraph-mcp) for additional entries. User-
   // supplied entries win on key collision (they go LAST in the spread).
   const extensionCtx: ClaudeMcpCtx = {
+    // workflow and config are kept empty because applyNodeConfig has no direct
+    // access to them. The 3-tier resolution is performed by dag-executor before
+    // dispatch — node.codegraph here carries the already-resolved effective flag.
     workflow: {},
+    config: {},
     node: {
-      codegraph: nodeConfig.codegraph as boolean | undefined,
+      codegraph: nodeConfig.codegraph,
       id: nodeConfig.nodeId ?? 'unknown',
     },
-    config: {},
     cwd,
   };
+  // NOTE: applyNodeConfig is invoked twice per sendQuery — once on a throwaway
+  // Options for warning extraction, then again for the real attempt. Extensions
+  // are called both times; extension authors should keep side effects idempotent
+  // or use one-shot guards (see codegraphMcpExtension.warnedMissing pattern).
   const extensionEntries = collectClaudeMcpExtensions(extensionCtx);
   if (Object.keys(extensionEntries).length > 0) {
     // Spread extension entries first; existing user mcpServers wins on collision.

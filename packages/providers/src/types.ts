@@ -291,6 +291,9 @@ export interface NodeConfig {
   >;
   allowed_tools?: string[];
   denied_tools?: string[];
+  /** Effective codegraph flag resolved upstream by dag-executor (3-tier: node > workflow > config).
+   *  Provider passes this through to the MCP extension context unchanged. */
+  codegraph?: boolean;
   effort?: string;
   thinking?: unknown;
   sandbox?: unknown;

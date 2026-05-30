@@ -6689,6 +6689,128 @@ describe('executeDagWorkflow -- Claude SDK advanced options', () => {
     const warning = messages.find(m => m.includes('effort') && m.toLowerCase().includes('codex'));
     expect(warning).toBeDefined();
   });
+
+  it('forwards node-level codegraph: true to nodeConfig.codegraph', async () => {
+    const mockDeps = createMockDeps();
+    const platform = createMockPlatform();
+    const workflowRun = makeWorkflowRun();
+
+    await executeDagWorkflow(
+      mockDeps,
+      platform,
+      'conv-dag',
+      testDir,
+      {
+        name: 'codegraph-node-test',
+        nodes: [{ id: 'step1', command: 'my-cmd', codegraph: true }],
+      },
+      workflowRun,
+      'claude',
+      undefined,
+      join(testDir, 'artifacts'),
+      join(testDir, 'logs'),
+      'main',
+      'docs/',
+      minimalConfig
+    );
+
+    expect(mockSendQueryDag.mock.calls.length).toBeGreaterThan(0);
+    const optionsArg = mockSendQueryDag.mock.calls[0][3] as Record<string, unknown>;
+    const nodeConfig = optionsArg?.nodeConfig as Record<string, unknown>;
+    expect(nodeConfig?.codegraph).toBe(true);
+  });
+
+  it('forwards workflow-level codegraph: true to nodeConfig.codegraph when node has no override', async () => {
+    const mockDeps = createMockDeps();
+    const platform = createMockPlatform();
+    const workflowRun = makeWorkflowRun();
+
+    await executeDagWorkflow(
+      mockDeps,
+      platform,
+      'conv-dag',
+      testDir,
+      {
+        name: 'codegraph-workflow-test',
+        nodes: [{ id: 'step1', command: 'my-cmd' }],
+        codegraph: true,
+      },
+      workflowRun,
+      'claude',
+      undefined,
+      join(testDir, 'artifacts'),
+      join(testDir, 'logs'),
+      'main',
+      'docs/',
+      minimalConfig
+    );
+
+    expect(mockSendQueryDag.mock.calls.length).toBeGreaterThan(0);
+    const optionsArg = mockSendQueryDag.mock.calls[0][3] as Record<string, unknown>;
+    const nodeConfig = optionsArg?.nodeConfig as Record<string, unknown>;
+    expect(nodeConfig?.codegraph).toBe(true);
+  });
+
+  it('node codegraph: false overrides workflow-level codegraph: true', async () => {
+    const mockDeps = createMockDeps();
+    const platform = createMockPlatform();
+    const workflowRun = makeWorkflowRun();
+
+    await executeDagWorkflow(
+      mockDeps,
+      platform,
+      'conv-dag',
+      testDir,
+      {
+        name: 'codegraph-node-override-test',
+        nodes: [{ id: 'step1', command: 'my-cmd', codegraph: false }],
+        codegraph: true,
+      },
+      workflowRun,
+      'claude',
+      undefined,
+      join(testDir, 'artifacts'),
+      join(testDir, 'logs'),
+      'main',
+      'docs/',
+      minimalConfig
+    );
+
+    expect(mockSendQueryDag.mock.calls.length).toBeGreaterThan(0);
+    const optionsArg = mockSendQueryDag.mock.calls[0][3] as Record<string, unknown>;
+    const nodeConfig = optionsArg?.nodeConfig as Record<string, unknown>;
+    expect(nodeConfig?.codegraph).toBe(false);
+  });
+
+  it('config-level codegraph.enabled: true propagates when node and workflow have no override', async () => {
+    const mockDeps = createMockDeps();
+    const platform = createMockPlatform();
+    const workflowRun = makeWorkflowRun();
+
+    await executeDagWorkflow(
+      mockDeps,
+      platform,
+      'conv-dag',
+      testDir,
+      {
+        name: 'codegraph-config-test',
+        nodes: [{ id: 'step1', command: 'my-cmd' }],
+      },
+      workflowRun,
+      'claude',
+      undefined,
+      join(testDir, 'artifacts'),
+      join(testDir, 'logs'),
+      'main',
+      'docs/',
+      { ...minimalConfig, codegraph: { enabled: true } }
+    );
+
+    expect(mockSendQueryDag.mock.calls.length).toBeGreaterThan(0);
+    const optionsArg = mockSendQueryDag.mock.calls[0][3] as Record<string, unknown>;
+    const nodeConfig = optionsArg?.nodeConfig as Record<string, unknown>;
+    expect(nodeConfig?.codegraph).toBe(true);
+  });
 });
 
 describe('executeDagWorkflow -- cost tracking', () => {

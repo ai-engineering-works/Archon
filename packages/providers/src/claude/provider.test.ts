@@ -30,6 +30,7 @@ mock.module('../mcp/config', () => ({
 import { ClaudeProvider, shouldPassNoEnvFile } from './provider';
 import * as claudeModule from './provider';
 import * as binaryResolver from './binary-resolver';
+import { registerClaudeMcpExtension, resetClaudeMcpExtensionsForTests } from './mcp-extensions';
 
 describe('shouldPassNoEnvFile', () => {
   test('returns false when cliPath is undefined (dev mode — SDK 0.2.x resolves a native binary)', () => {
@@ -1467,7 +1468,6 @@ describe('sendQuery decomposition behaviors', () => {
 });
 
 // ─── MCP extension registry integration ──────────────────────────────────────
-import { registerClaudeMcpExtension, resetClaudeMcpExtensionsForTests } from './mcp-extensions';
 
 describe('ClaudeProvider: MCP extensions are merged into mcpServers', () => {
   let client: ClaudeProvider;
