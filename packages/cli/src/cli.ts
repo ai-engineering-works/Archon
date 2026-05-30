@@ -114,6 +114,9 @@ Commands:
   complete <branch> [...]    Complete branch lifecycle (remove worktree + branches)
   serve                      Start the web UI server (downloads web UI on first run)
   skill install [path]       Install the bundled Archon skill into .claude/skills/archon
+  codegraph index [<path>]   Build the codegraph index for the given path (default: cwd)
+  codegraph sync [<path>]    Incrementally sync the codegraph index
+  codegraph status [<path>]  Show codegraph index health
   doctor                     Verify your Archon setup (Claude binary, gh auth, DB, adapters)
   telemetry status           Show anonymous telemetry state (enabled, reason, ID, host)
   telemetry reset            Rotate the anonymous install UUID
@@ -291,6 +294,7 @@ async function main(): Promise<number> {
     'continue',
     'serve',
     'skill',
+    'codegraph',
     'doctor',
     'telemetry',
   ];
@@ -730,6 +734,18 @@ async function main(): Promise<number> {
             console.error('Available: install');
             return 1;
         }
+      }
+
+      case 'codegraph': {
+        const { runCodegraphCommand } = await import('./commands/codegraph');
+        await runCodegraphCommand({
+          args: positionals.slice(1),
+          log: m => {
+            console.log(m);
+          },
+          exit: ((c: number) => process.exit(c)) as (code: number) => never,
+        });
+        break;
       }
 
       default:
