@@ -25,14 +25,21 @@ export async function detectCodegraphBinary(): Promise<CodegraphDetection> {
   inflight = (async (): Promise<CodegraphDetection> => {
     try {
       const { stdout } = await execFileAsync('codegraph', ['--version']);
-      const version = stdout.trim();
-      if (!version) {
+      const raw = stdout.trim();
+      // Accept "X.Y.Z" or "vX.Y.Z" at the start; treat anything else as "wrong shape"
+      const match = /^v?(\d+\.\d+\.\d+)/.exec(raw);
+      if (!match) {
         cache = { found: false };
       } else {
-        cache = { found: true, path: 'codegraph', version };
-        log.info({ version }, 'codegraph.binary_detected');
+        cache = { found: true, path: 'codegraph', version: match[1] };
+        log.info({ version: match[1] }, 'codegraph.binary_detected');
       }
-    } catch {
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      if (e.code !== 'ENOENT') {
+        // Non-ENOENT means the binary exists but is unusable — log for diagnostics.
+        log.debug({ err: e.message, code: e.code }, 'codegraph.binary_probe_failed');
+      }
       cache = { found: false };
     }
     inflight = null;
