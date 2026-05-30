@@ -11,7 +11,10 @@ import { homedir } from 'os';
 import { execFileAsync } from '@archon/git';
 import { BUNDLED_IS_BINARY, getArchonHome, createLogger, getTelemetryStatus } from '@archon/paths';
 import type { CodegraphDetection } from '@archon/core/services/codegraph-detect';
-import { detectCodegraphBinary } from '@archon/core/services/codegraph-detect';
+import {
+  detectCodegraphBinary,
+  invalidateCodegraphDetectionCache,
+} from '@archon/core/services/codegraph-detect';
 import { CODEGRAPH_INSTALL_URL_SH } from './codegraph';
 
 // Env vars that indicate a Pi backend API key is configured. Keep in sync with
@@ -92,9 +95,23 @@ export function probeCodegraphBinary(): Promise<CodegraphDetection> {
  */
 export async function checkCodegraph(env: NodeJS.ProcessEnv): Promise<CheckResult> {
   const label = 'codegraph';
-  const optedIn = env.ARCHON_CODEGRAPH_ENABLED === 'true' || env.ARCHON_CODEGRAPH_ENABLED === '1';
 
+  // Always re-probe: when doctor runs at the end of `archon setup`, the
+  // module-level cache may hold a stale "not found" from a pre-install probe.
+  invalidateCodegraphDetectionCache();
   const detection = await probeCodegraphBinary();
+
+  const envVal = env.ARCHON_CODEGRAPH_ENABLED;
+  let optedIn: boolean;
+  if (envVal !== undefined) {
+    // Env var present — it's the override; trust it.
+    optedIn = envVal === 'true' || envVal === '1';
+  } else {
+    // No env var; fall back to config file via @archon/core's loadConfig.
+    const { loadConfig } = await import('@archon/core');
+    const cfg = await loadConfig();
+    optedIn = cfg.codegraph.enabled ?? false;
+  }
 
   if (detection.found) {
     return { label, status: 'pass', message: `${detection.path} (v${detection.version})` };

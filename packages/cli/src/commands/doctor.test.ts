@@ -12,6 +12,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { mkdirSync, rmSync } from 'fs';
 import * as git from '@archon/git';
+import * as archonCore from '@archon/core';
 import {
   checkClaudeBinary,
   checkCodegraph,
@@ -472,6 +473,26 @@ describe('checkCodegraph', () => {
     expect(result.status).toBe('fail');
     expect(result.label).toBe('codegraph');
     expect(result.message.toLowerCase()).toContain('install');
+  });
+
+  it('returns fail when opted in via config.yaml (no env var) and binary is missing', async () => {
+    // Simulate YAML-only opt-in: no ARCHON_CODEGRAPH_ENABLED env var, but
+    // config.codegraph.enabled is true. Previously doctor reported 'skip' in
+    // this case — now it must report 'fail' with an install hint.
+    const loadConfigSpy = spyOn(archonCore, 'loadConfig').mockResolvedValue({
+      codegraph: { enabled: true, autoIndex: true, watchDebounceMs: 2000 },
+    } as Awaited<ReturnType<typeof archonCore.loadConfig>>);
+
+    codegraphSpy.mockResolvedValue({ found: false });
+
+    // Empty env — no ARCHON_CODEGRAPH_ENABLED set
+    const result = await checkCodegraph({});
+
+    expect(result.status).toBe('fail');
+    expect(result.label).toBe('codegraph');
+    expect(result.message.toLowerCase()).toContain('install');
+
+    loadConfigSpy.mockRestore();
   });
 });
 
