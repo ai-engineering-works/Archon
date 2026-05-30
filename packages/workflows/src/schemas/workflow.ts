@@ -82,6 +82,15 @@ export const workflowBaseSchema = z.object({
    * Requires the resolved provider to declare `sessionResume: true`.
    */
   persist_sessions: z.boolean().optional(),
+  /**
+   * When true, Claude nodes in this workflow get the codegraph MCP server
+   * auto-attached (subject to global config + binary availability).
+   * Node-level `codegraph` overrides this. Resolution: see
+   * `@archon/workflows/utils/resolve-codegraph`.
+   *
+   * Claude-only in v1; non-Claude providers ignore the flag.
+   */
+  codegraph: z.boolean().optional(),
   tags: z.array(z.string().min(1)).optional(),
 });
 
