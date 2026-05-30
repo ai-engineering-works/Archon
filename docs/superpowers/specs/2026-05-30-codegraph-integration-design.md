@@ -120,7 +120,7 @@ already familiar to Archon users.
 
 | Path | Owns |
 |---|---|
-| `packages/core/src/schemas/codegraph-config.ts` | Zod `codegraphConfigSchema` — `{ enabled, autoIndex, watchDebounceMs }`. Re-exported via `packages/core/src/schemas/index.ts`. |
+| `packages/core/src/config/config-types.ts` (edit) and `config-loader.ts` (edit) | `CodegraphConfig` TypeScript interface in `config-types.ts` (matches the existing plain-TS-interface convention used for `GlobalConfig`, `RepoConfig`, `MergedConfig` — no Zod for the config layer). Defaults + merge + env-var override (`ARCHON_CODEGRAPH_ENABLED`) live in `config-loader.ts`. |
 | `packages/core/src/services/codegraph-bootstrap.ts` | `bootstrapCodegraphIndex(codebase)` — runs `codegraph init -i` against `<source>` when enabled + binary present. |
 | `packages/core/src/services/codegraph-detect.ts` | `detectCodegraphBinary()` — probes `codegraph --version`; module-level cached result; returns `{ found, path, version } \| null`. |
 | `packages/workflows/src/utils/resolve-codegraph.ts` | `resolveCodegraph(node, workflow, config)` — pure 3-tier `??` helper. |
