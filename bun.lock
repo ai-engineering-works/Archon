@@ -6,6 +6,7 @@
       "name": "archon",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.121",
+        "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.2.141",
         "@opencode-ai/sdk": "^1.14.20",
       },
       "devDependencies": {
@@ -24,7 +25,7 @@
     },
     "packages/adapters": {
       "name": "@archon/adapters",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@archon/core": "workspace:*",
         "@archon/git": "workspace:*",
@@ -44,7 +45,7 @@
     },
     "packages/cli": {
       "name": "@archon/cli",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "bin": {
         "archon": "./src/cli.ts",
       },
@@ -66,7 +67,7 @@
     },
     "packages/core": {
       "name": "@archon/core",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@archon/git": "workspace:*",
         "@archon/isolation": "workspace:*",
@@ -89,7 +90,7 @@
     },
     "packages/docs-web": {
       "name": "@archon/docs-web",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@astrojs/starlight": "^0.38.0",
         "astro": "^6.1.0",
@@ -98,7 +99,7 @@
     },
     "packages/git": {
       "name": "@archon/git",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@archon/paths": "workspace:*",
       },
@@ -108,7 +109,7 @@
     },
     "packages/isolation": {
       "name": "@archon/isolation",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@archon/git": "workspace:*",
         "@archon/paths": "workspace:*",
@@ -119,7 +120,7 @@
     },
     "packages/paths": {
       "name": "@archon/paths",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "dotenv": "^17",
         "pino": "^9",
@@ -132,7 +133,7 @@
     },
     "packages/providers": {
       "name": "@archon/providers",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.121",
         "@archon/paths": "workspace:*",
@@ -152,7 +153,7 @@
     },
     "packages/server": {
       "name": "@archon/server",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@archon/adapters": "workspace:*",
         "@archon/core": "workspace:*",
@@ -171,7 +172,7 @@
     },
     "packages/web": {
       "name": "@archon/web",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@dagrejs/dagre": "^2.0.4",
         "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -223,7 +224,7 @@
     },
     "packages/workflows": {
       "name": "@archon/workflows",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@archon/git": "workspace:*",
         "@archon/paths": "workspace:*",

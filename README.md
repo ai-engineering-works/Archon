@@ -208,6 +208,24 @@ The coding agent handles workflow selection, branch naming, and worktree isolati
 
 > **Important:** Always run Claude Code from your target repo, not from the Archon repo. The setup wizard copies the Archon skill into your project so it works from there.
 
+## CodeGraph (optional, Claude only)
+
+For Claude workflows, Archon can attach [CodeGraph](https://github.com/colbymchenry/codegraph) as an MCP server — a local code knowledge graph (tree-sitter + SQLite + FTS5) that answers structural code questions in one tool call instead of dozens of `grep` / `Read` rounds. CodeGraph's own benchmarks report **~25% cheaper, ~57% fewer tokens, ~62% fewer tool calls** on structural queries across seven open-source codebases. 100% local — no API keys, no external services.
+
+The fastest path is the setup wizard:
+
+```bash
+archon setup
+```
+
+After the assistant step, if you've selected Claude, you're asked whether to install CodeGraph and enable it by default for new codebases. The wizard handles the install (`--target=none --yes` so CodeGraph never registers itself in `~/.claude.json` — Archon owns the MCP attach), writes both `ARCHON_CODEGRAPH_ENABLED=true` to `~/.archon/.env` and `codegraph.enabled: true` to `~/.archon/config.yaml`, and appends `.codegraph` to `worktree.copyFiles` so the index travels with each worktree.
+
+Per-workflow or per-node opt-out via `codegraph: false` in the YAML. Three-tier resolution (`node ?? workflow ?? config.codegraph.enabled`) mirrors how `provider` / `model` resolve today.
+
+Verify with `archon doctor` (look for the `codegraph` row) and inspect the index per codebase with `archon codegraph status [<path>]`.
+
+For full details — config schema, CLI commands, log catalog, error handling — see [`docs/getting-started/codegraph`](packages/docs-web/src/content/docs/getting-started/codegraph.md) and [`docs/reference/codegraph`](packages/docs-web/src/content/docs/reference/codegraph.md).
+
 ## Web UI
 
 Archon includes a web dashboard for chatting with your coding agent, running workflows, and monitoring activity. Binary installs: run `archon serve` to download and start the web UI in one step. From source: ask your coding agent to run the frontend from the Archon repo, or run `bun run dev` from the repo root yourself.

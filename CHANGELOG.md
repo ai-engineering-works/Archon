@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- README section documenting the optional CodeGraph integration — quick install via `archon setup`, per-workflow opt-out, verification via `archon doctor`, and links to the getting-started + reference doc pages.
+
+### Changed
+
+- Pinned `@anthropic-ai/claude-agent-sdk-darwin-arm64` at `0.2.141` as an explicit platform-binary dependency. The Claude Agent SDK's macOS-arm64 native binary is now resolved from a fixed version rather than the SDK's transitive resolution.
+
 ## [0.5.0] - 2026-05-30
 
 CodeGraph MCP integration for Claude workflows — ~25% cheaper, ~57% fewer tokens, ~62% fewer tool calls on structural code queries. Plus the latest upstream syncs.
