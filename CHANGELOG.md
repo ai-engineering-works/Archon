@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-06-01
+
+Patch release: README documents the CodeGraph integration, and the Claude Agent SDK's macOS-arm64 native binary is pinned for build reproducibility.
+
 ### Added
 
 - README section documenting the optional CodeGraph integration — quick install via `archon setup`, per-workflow opt-out, verification via `archon doctor`, and links to the getting-started + reference doc pages.
